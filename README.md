@@ -46,7 +46,7 @@ In GIF mode, you can specify the frame rate and resolution for the output GIF. A
 2. Install the necessary dependencies by running:
 
    ```bash
-   pip install moviepy PyQt5
+   pip install -r requirements.txt
    ```
 
 3. Make sure FFmpeg is installed and accessible through your system’s PATH.
