@@ -46,6 +46,7 @@ class VideoCompressorApp(QWidget):
         file_layout = QHBoxLayout()
         format_layout = QHBoxLayout()
         compression_layout = QHBoxLayout()
+        settings_layout = QVBoxLayout()
         trim_layout = QHBoxLayout()
         gif_options_layout = QVBoxLayout()
 
@@ -68,6 +69,18 @@ class VideoCompressorApp(QWidget):
         self.size_combo.currentIndexChanged.connect(self.toggle_custom_size_field)
         compression_layout.addWidget(self.size_label)
         compression_layout.addWidget(self.size_combo)
+
+        self.codec_label = QLabel("Select Codec:")
+        self.codec_combo = QComboBox()
+        self.codec_combo.addItems(["h264_nvenc", "libx264", "libx265"])
+        settings_layout.addWidget(self.codec_label)
+        settings_layout.addWidget(self.codec_combo)
+
+        self.preset_label = QLabel("Select Preset:")
+        self.preset_combo = QComboBox()
+        self.preset_combo.addItems(["fast", "medium", "slow", "ultrafast", "superfast", "veryfast", "faster", "slower", "veryslow"])
+        settings_layout.addWidget(self.preset_label)
+        settings_layout.addWidget(self.preset_combo)
 
         self.custom_size_input = QLineEdit()
         self.custom_size_input.setPlaceholderText("Enter size in MB")
@@ -106,6 +119,7 @@ class VideoCompressorApp(QWidget):
         main_layout.addLayout(file_layout)
         main_layout.addLayout(format_layout)
         main_layout.addLayout(compression_layout)
+        main_layout.addLayout(settings_layout)
         main_layout.addLayout(trim_layout)
         main_layout.addLayout(gif_options_layout)
         main_layout.addWidget(compress_button)
@@ -161,6 +175,10 @@ class VideoCompressorApp(QWidget):
             else:
                 self.custom_size_input.hide()
 
+            self.codec_label.show()
+            self.codec_combo.show()
+            self.preset_label.show()
+            self.preset_combo.show()
             self.gif_fps_label.hide()
             self.gif_fps_entry.hide()
             self.gif_res_label.hide()
@@ -170,6 +188,10 @@ class VideoCompressorApp(QWidget):
         else:
             self.size_label.hide()
             self.size_combo.hide()
+            self.codec_label.hide()
+            self.codec_combo.hide()
+            self.preset_label.hide()
+            self.preset_combo.hide()
             self.custom_size_input.hide()
             self.gif_fps_label.show()
             self.gif_fps_entry.show()
@@ -226,19 +248,32 @@ class VideoCompressorApp(QWidget):
             )
 
             if output_format == "mp4":
+                video = video.resize(newsize=(1280, 720))
+                fps = 30
+
+                audio_bitrate_kbps = 128
+
                 video_duration = end_seconds - start_seconds
-                target_bitrate = (target_size_mb * 8 * 1024 * 1024) / video_duration
-                target_bitrate_kbps = int(target_bitrate / 1000)
+                total_bitrate = (target_size_mb * 8 * 1024 * 1024) / (1.073741824 * video_duration)
+
+                target_bitrate_kbps = int((total_bitrate / 1000) - audio_bitrate_kbps)
+
+                codec = self.codec_combo.currentText()
+                preset = self.preset_combo.currentText()
 
                 self.status_label.setText(f"Compressing MP4 to {target_size_mb}MB...")
-                print(f"Calculated target bitrate: {target_bitrate_kbps} kbps")
+                print(f"Calculated total bitrate: {int(total_bitrate / 1000)} kbps")
+                print(f"Video bitrate: {target_bitrate_kbps} kbps, Audio bitrate: {audio_bitrate_kbps} kbps")
+                print(f"Codec: {codec}, Preset: {preset}")
 
                 video.write_videofile(
                     output_file,
-                    codec="h264_nvenc",
+                    fps=fps,
+                    codec=codec,
                     bitrate=f"{target_bitrate_kbps}k",
-                    preset="slow",
-                    threads=4,
+                    audio_bitrate=f"{audio_bitrate_kbps}k",
+                    preset=preset,
+                    threads=6,
                 )
 
             else:
@@ -257,8 +292,17 @@ class VideoCompressorApp(QWidget):
         except Exception as e:
             self.show_error_message(f"Error: {e}")
             print(f"Error during compression: {e}")
+
+            if os.path.isfile(output_file):
+                print(f"Deleting output file: {output_file}")
+                os.remove(output_file)
+            for file in os.listdir(os.getcwd()):
+                if file.endswith("TEMP_MPY_wvf_snd.mp3"):
+                    print(f"Deleting temporary audio file: {file}")
+                    os.remove(file)
         finally:
             video.close()
+
 
     def show_error_message(self, message):
         QMessageBox.critical(self, "Error", message)
